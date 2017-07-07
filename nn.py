@@ -69,6 +69,7 @@ def cnn_structure2(lmdb,batch_size):
 
     return n.to_proto()
 '''
+'''
 #architecture same as 2 with only 10 filters per layer
 def cnn_structure3(lmdb,batch_size):
     n = caffe.NetSpec()
@@ -95,8 +96,33 @@ def cnn_structure3(lmdb,batch_size):
     n.loss =  layers.SoftmaxWithLoss(n.score, n.label)
 
     return n.to_proto()
+'''
+#architecture [(conv(3x3)->relu) x2 -> pool(2x2)  ] -> [(conv(3x3)->relu) x1 -> pool(2x2)  ]   -> (fc1 (1280)) -> (fc2 (1280)) -> (fc3 (5))
+def cnn_structure4(lmdb,batch_size):
+    n = caffe.NetSpec()
+    n.data, n.label = layers.Data(batch_size=batch_size, backend=params.Data.LMDB, source=lmdb,
+                              ntop=2)
 
+    n.conv1 = layers.Convolution(n.data, kernel_size=3, num_output=5, weight_filler=dict(type='xavier'))
+    n.relu1 = layers.ReLU(n.conv1, in_place = True)
+    n.conv2 = layers.Convolution(n.relu1, kernel_size=3, num_output=5, weight_filler=dict(type='xavier'))
+    n.relu2 = layers.ReLU(n.conv2, in_place = True)
+    n.pool1 = layers. Pooling(n.relu2, kernel_size=2, stride=2, pool=params.Pooling.MAX)
 
+    n.conv3 = layers.Convolution(n.pool1, kernel_size=3, num_output=5, weight_filler=dict(type='xavier'))
+    n.relu3 = layers.ReLU(n.conv3, in_place = True)
+    n.pool2 = layers.Pooling(n.relu3,kernel_size=2,stride=2,pool=params.Pooling.MAX)
+
+    n.fc1 = layers.InnerProduct(n.pool2, num_output=1280, weight_filler=dict(type='xavier'))
+    n.relu4 =  layers.ReLU(n.fc1, in_place = True)
+
+    n.fc2 = layers.InnerProduct(n.relu4,num_output=1280,weight_filler=dict(type='xavier'))
+    n.relu5 = layers.ReLU(n.fc2,in_place=True)
+
+    n.score = layers.InnerProduct(n.relu5, num_output=5, weight_filler=dict(type='xavier'))
+    n.loss =  layers.SoftmaxWithLoss(n.score, n.label)
+
+    return n.to_proto()
 def solver(train_net_path,test_net_path):
     solv = caffe_pb2.SolverParameter()
     #solv.random_seed = 0xCAFFE
@@ -126,10 +152,10 @@ def main():
     solver_path = '/output/solver.prototxt'
 
     with open(train_net_path, 'w') as f:
-        f.write(str(cnn_structure3('/dataset/train_data/', 256)))
+        f.write(str(cnn_structure4('/dataset/train_data/', 256)))
 
     with open(test_net_path, 'w') as f:
-        f.write(str(cnn_structure3('/dataset/validation_data/', 64)))
+        f.write(str(cnn_structure4('/dataset/validation_data/', 64)))
 
     with open(solver_path, 'w') as f:
         f.write(str(solver(train_net_path,test_net_path)))
